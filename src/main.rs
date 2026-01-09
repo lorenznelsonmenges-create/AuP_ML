@@ -1,8 +1,12 @@
 use yew::prelude::*;
 
+use gloo_storage::{LocalStorage, Storage}; // CHANGED: localStorage import
+
 use rust_frontend::carsharing::{
     Car, CarSharing, CarSharingService, CarStatus, Person, PersonStatus,
 };
+
+const STORAGE_KEY: &str = "carsharing_state"; // CHANGED: key als const
 
 #[derive(Clone, PartialEq)]
 enum Tab {
@@ -28,8 +32,10 @@ fn tab_button(current: &Tab, tab: Tab, label: &str, on_click: Callback<MouseEven
 fn app() -> Html {
     let tab = use_state(|| Tab::Persons);
 
-    // App-State: CarSharing
-    let cs = use_state(CarSharing::new);
+    // App-State: CarSharing (aus localStorage laden)
+    let cs = use_state(|| { // CHANGED
+        LocalStorage::get(STORAGE_KEY).unwrap_or_else(|_| CarSharing::new())
+    });
 
     // Kleine Statuszeile (Feedback)
     let info = use_state(|| String::new());
@@ -59,11 +65,25 @@ fn app() -> Html {
     // ---------- Simulation State ----------
     let sim_days = use_state(|| "1".to_string());
 
-    // Helpers: parse u32 with message
-    let parse_u32 = |s: &str, field: &str| -> Result<u32, String> {
-        s.trim()
-            .parse::<u32>()
-            .map_err(|_| format!("Bitte eine Zahl für '{}' eingeben.", field))
+    // Helper: speichern
+    let save_state = {
+        let info = info.clone();
+        Callback::from(move |model: CarSharing| { // CHANGED
+            if LocalStorage::set(STORAGE_KEY, &model).is_err() {
+                info.set("Warnung: Konnte State nicht in localStorage speichern.".to_string());
+            }
+        })
+    };
+
+    // Reset Button (optional, aber sehr hilfreich)
+    let on_reset = { // CHANGED
+        let cs = cs.clone();
+        let info = info.clone();
+        Callback::from(move |_| {
+            LocalStorage::delete(STORAGE_KEY);
+            cs.set(CarSharing::new());
+            info.set("State zurückgesetzt (localStorage gelöscht).".to_string());
+        })
     };
 
     // ========== Tab Switch Callbacks ==========
@@ -94,6 +114,7 @@ fn app() -> Html {
         let info = info.clone();
         let p_id = p_id.clone();
         let p_days = p_days.clone();
+        let save_state = save_state.clone(); // CHANGED
 
         Callback::from(move |_| {
             let mut model = (*cs).clone();
@@ -117,6 +138,7 @@ fn app() -> Html {
             });
 
             if ok {
+                save_state.emit(model.clone()); // CHANGED
                 cs.set(model);
                 info.set(format!("Person '{}' angelegt.", id));
             } else {
@@ -129,6 +151,7 @@ fn app() -> Html {
         let cs = cs.clone();
         let info = info.clone();
         let p_id = p_id.clone();
+        let save_state = save_state.clone(); // CHANGED
 
         Callback::from(move |_| {
             let mut model = (*cs).clone();
@@ -140,6 +163,7 @@ fn app() -> Html {
 
             let ok = model.unregister_person(&id);
             if ok {
+                save_state.emit(model.clone()); // CHANGED
                 cs.set(model);
                 info.set(format!("Person '{}' entfernt.", id));
             } else {
@@ -153,6 +177,7 @@ fn app() -> Html {
         let info = info.clone();
         let p_id = p_id.clone();
         let p_days = p_days.clone();
+        let save_state = save_state.clone(); // CHANGED
 
         Callback::from(move |_| {
             let mut model = (*cs).clone();
@@ -171,6 +196,7 @@ fn app() -> Html {
 
             let ok = model.renew_license(&id, days);
             if ok {
+                save_state.emit(model.clone()); // CHANGED
                 cs.set(model);
                 info.set(format!("Führerschein für '{}' erneuert: {} Tage.", id, days));
             } else {
@@ -186,6 +212,7 @@ fn app() -> Html {
         let c_id = c_id.clone();
         let c_km = c_km.clone();
         let c_age = c_age.clone();
+        let save_state = save_state.clone(); // CHANGED
 
         Callback::from(move |_| {
             let mut model = (*cs).clone();
@@ -220,6 +247,7 @@ fn app() -> Html {
             });
 
             if ok {
+                save_state.emit(model.clone()); // CHANGED
                 cs.set(model);
                 info.set(format!("Auto '{}' angelegt.", id));
             } else {
@@ -232,6 +260,7 @@ fn app() -> Html {
         let cs = cs.clone();
         let info = info.clone();
         let c_id = c_id.clone();
+        let save_state = save_state.clone(); // CHANGED
 
         Callback::from(move |_| {
             let mut model = (*cs).clone();
@@ -243,6 +272,7 @@ fn app() -> Html {
 
             let ok = model.unregister_car(&id);
             if ok {
+                save_state.emit(model.clone()); // CHANGED
                 cs.set(model);
                 info.set(format!("Auto '{}' entfernt.", id));
             } else {
@@ -258,6 +288,7 @@ fn app() -> Html {
         let r_person = r_person.clone();
         let r_car = r_car.clone();
         let r_prio = r_prio.clone();
+        let save_state = save_state.clone(); // CHANGED
 
         Callback::from(move |_| {
             let mut model = (*cs).clone();
@@ -279,6 +310,7 @@ fn app() -> Html {
 
             let ok = model.reserve_car(&person_id, &car_id, prio);
             if ok {
+                save_state.emit(model.clone()); // CHANGED
                 cs.set(model);
                 info.set(format!("Reservierung gesetzt: {} -> {} (prio {}).", person_id, car_id, prio));
             } else {
@@ -292,6 +324,7 @@ fn app() -> Html {
         let info = info.clone();
         let r_person = r_person.clone();
         let r_car = r_car.clone();
+        let save_state = save_state.clone(); // CHANGED
 
         Callback::from(move |_| {
             let mut model = (*cs).clone();
@@ -305,6 +338,7 @@ fn app() -> Html {
 
             let ok = model.cancel_reservation(&person_id, &car_id);
             if ok {
+                save_state.emit(model.clone()); // CHANGED
                 cs.set(model);
                 info.set(format!("Reservierung storniert: {} -> {}.", person_id, car_id));
             } else {
@@ -316,9 +350,12 @@ fn app() -> Html {
     let on_process_reservations = {
         let cs = cs.clone();
         let info = info.clone();
+        let save_state = save_state.clone(); // CHANGED
         Callback::from(move |_| {
             let mut model = (*cs).clone();
             let processed = model.process_reservations();
+
+            save_state.emit(model.clone()); // CHANGED
             cs.set(model);
 
             if processed.is_empty() {
@@ -335,6 +372,7 @@ fn app() -> Html {
         let info = info.clone();
         let rent_person = rent_person.clone();
         let rent_car = rent_car.clone();
+        let save_state = save_state.clone(); // CHANGED
 
         Callback::from(move |_| {
             let mut model = (*cs).clone();
@@ -347,6 +385,7 @@ fn app() -> Html {
 
             let ok = model.rent_car(&person_id, &car_id);
             if ok {
+                save_state.emit(model.clone()); // CHANGED
                 cs.set(model);
                 info.set(format!("Rental erstellt: {} -> {}.", person_id, car_id));
             } else {
@@ -361,6 +400,7 @@ fn app() -> Html {
         let ret_person = ret_person.clone();
         let ret_car = ret_car.clone();
         let ret_km = ret_km.clone();
+        let save_state = save_state.clone(); // CHANGED
 
         Callback::from(move |_| {
             let mut model = (*cs).clone();
@@ -381,6 +421,7 @@ fn app() -> Html {
 
             let ok = model.return_car(&person_id, &car_id, driven_km);
             if ok {
+                save_state.emit(model.clone()); // CHANGED
                 cs.set(model);
                 info.set(format!("Auto zurückgegeben: {} -> {} (+{} km).", person_id, car_id, driven_km));
             } else {
@@ -394,6 +435,7 @@ fn app() -> Html {
         let cs = cs.clone();
         let info = info.clone();
         let sim_days = sim_days.clone();
+        let save_state = save_state.clone(); // CHANGED
 
         Callback::from(move |_| {
             let mut model = (*cs).clone();
@@ -406,6 +448,8 @@ fn app() -> Html {
             };
 
             model.simulate_n_days(n);
+
+            save_state.emit(model.clone()); // CHANGED
             cs.set(model);
             info.set(format!("Simulation durchgeführt: {} Tage.", n));
         })
@@ -612,6 +656,7 @@ fn app() -> Html {
                 <div style={row_style}>
                     <input style={input_style} placeholder="n days" value={(*sim_days).clone()} oninput={on_sim_days}/>
                     <button style={button_style} onclick={on_simulate}>{"Simulate n days"}</button>
+                    <button style={button_style} onclick={on_reset}>{"Reset state"}</button> // CHANGED
                 </div>
                 <p style={small}>{format!("Current day: {}", model.current_day)}</p>
                 <p style={small}>{"Hinweis: simulate_n_days() verarbeitet am Ende jedes Tages process_reservations()."}</p>

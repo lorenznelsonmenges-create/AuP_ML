@@ -738,6 +738,9 @@ dependencies = [
 name = "rust-frontend"
 version = "0.1.0"
 dependencies = [
+ "gloo-storage 0.3.0",
+ "serde",
+ "serde_json",
  "web-sys",
  "yew",
 ]

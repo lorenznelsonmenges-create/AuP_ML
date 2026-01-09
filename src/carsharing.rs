@@ -9,13 +9,15 @@ const MAX_AGE_DAYS: u32 = 3650;
 const MAX_KM: u32 = 200000;
 const MAX_RENTALS: u32 = 500;
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+use serde::{Serialize, Deserialize};
+
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum PersonStatus {
     Active,
     Blocked,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum CarStatus {
     Available,
     Rented,
@@ -24,14 +26,14 @@ pub enum CarStatus {
     Retired,
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Person {
     pub identifier: String,          // CHANGED: &'a str -> String + pub (Frontend braucht Zugriff)
     pub license_valid_days: u32,     // CHANGED: pub (optional, aber praktisch fürs Frontend)
     pub status: PersonStatus,        // CHANGED: pub
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Car {
     pub identifier: String,          // CHANGED: &'a str -> String + pub
     pub mileage: u32,                // CHANGED: pub
@@ -40,14 +42,14 @@ pub struct Car {
     pub rental_count: u32,           // CHANGED: pub
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Reservation {
     pub person_id: String,           // CHANGED: &'a str -> String + pub
     pub car_id: String,              // CHANGED: &'a str -> String + pub
     pub priority: u32,               // CHANGED: pub
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CarSharing {
     pub persons: Vec<Person>,                 // CHANGED: Vec<Person<'a>> -> Vec<Person>
     pub cars: Vec<Car>,                       // CHANGED: Vec<Car<'a>> -> Vec<Car>
