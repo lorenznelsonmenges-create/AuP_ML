@@ -1,3 +1,4 @@
+cat > .github/workflows/pages.yml <<'YAML'
 name: Deploy to GitHub Pages
 
 on:
@@ -12,30 +13,13 @@ permissions:
   id-token: write
 
 concurrency:
-  group: "pages"
+  group: pages
   cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install Trunk
-        run: cargo install trunk
-
-      - name: Build
-        run: trunk build --release --public-url /AuP_ML/
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: dis    steps:
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -62,8 +46,8 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-
     steps:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+YAML
