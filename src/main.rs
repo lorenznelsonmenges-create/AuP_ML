@@ -1,12 +1,12 @@
 use yew::prelude::*;
 
-use gloo_storage::{LocalStorage, Storage}; // CHANGED: localStorage import
+use gloo_storage::{LocalStorage, Storage};
 
 use rust_frontend::carsharing::{
     Car, CarSharing, CarSharingService, CarStatus, Person, PersonStatus,
 };
 
-const STORAGE_KEY: &str = "carsharing_state"; // CHANGED: key als const
+const STORAGE_KEY: &str = "carsharing_state";
 
 #[derive(Clone, PartialEq)]
 enum Tab {
@@ -33,7 +33,7 @@ fn app() -> Html {
     let tab = use_state(|| Tab::Persons);
 
     // App-State: CarSharing (aus localStorage laden)
-    let cs = use_state(|| { // CHANGED
+    let cs = use_state(|| {
         LocalStorage::get(STORAGE_KEY).unwrap_or_else(|_| CarSharing::new())
     });
 
@@ -42,41 +42,38 @@ fn app() -> Html {
 
     // ---------- Persons Form State ----------
     let p_id = use_state(|| "".to_string());
-    let p_days = use_state(|| "30".to_string());
+    let p_days = use_state(|| "".to_string());
 
     // ---------- Cars Form State ----------
     let c_id = use_state(|| "".to_string());
-    let c_km = use_state(|| "0".to_string());
-    let c_age = use_state(|| "0".to_string());
+    let c_km = use_state(|| "".to_string());
+    let c_age = use_state(|| "".to_string());
 
     // ---------- Reservation Form State ----------
     let r_person = use_state(|| "".to_string());
     let r_car = use_state(|| "".to_string());
     let r_prio = use_state(|| "1".to_string());
 
-    // ---------- Rental/Return Form State ----------
-    let rent_person = use_state(|| "".to_string());
-    let rent_car = use_state(|| "".to_string());
-
+    // ---------- Return Form State ----------
     let ret_person = use_state(|| "".to_string());
     let ret_car = use_state(|| "".to_string());
-    let ret_km = use_state(|| "10".to_string());
+    let ret_km = use_state(|| "".to_string());
 
     // ---------- Simulation State ----------
-    let sim_days = use_state(|| "1".to_string());
+    let sim_days = use_state(|| "".to_string());
 
     // Helper: speichern
     let save_state = {
         let info = info.clone();
-        Callback::from(move |model: CarSharing| { // CHANGED
+        Callback::from(move |model: CarSharing| {
             if LocalStorage::set(STORAGE_KEY, &model).is_err() {
                 info.set("Warnung: Konnte State nicht in localStorage speichern.".to_string());
             }
         })
     };
 
-    // Reset Button (optional, aber sehr hilfreich)
-    let on_reset = { // CHANGED
+    // Reset Button
+    let on_reset = {
         let cs = cs.clone();
         let info = info.clone();
         Callback::from(move |_| {
@@ -114,7 +111,7 @@ fn app() -> Html {
         let info = info.clone();
         let p_id = p_id.clone();
         let p_days = p_days.clone();
-        let save_state = save_state.clone(); // CHANGED
+        let save_state = save_state.clone();
 
         Callback::from(move |_| {
             let mut model = (*cs).clone();
@@ -138,7 +135,7 @@ fn app() -> Html {
             });
 
             if ok {
-                save_state.emit(model.clone()); // CHANGED
+                save_state.emit(model.clone());
                 cs.set(model);
                 info.set(format!("Person '{}' angelegt.", id));
             } else {
@@ -151,7 +148,7 @@ fn app() -> Html {
         let cs = cs.clone();
         let info = info.clone();
         let p_id = p_id.clone();
-        let save_state = save_state.clone(); // CHANGED
+        let save_state = save_state.clone();
 
         Callback::from(move |_| {
             let mut model = (*cs).clone();
@@ -163,11 +160,14 @@ fn app() -> Html {
 
             let ok = model.unregister_person(&id);
             if ok {
-                save_state.emit(model.clone()); // CHANGED
+                save_state.emit(model.clone());
                 cs.set(model);
                 info.set(format!("Person '{}' entfernt.", id));
             } else {
-                info.set("Person konnte nicht entfernt werden (evtl. existiert sie nicht oder hat ein Rental).".to_string());
+                info.set(
+                    "Person konnte nicht entfernt werden (evtl. existiert sie nicht oder hat ein Rental)."
+                        .to_string(),
+                );
             }
         })
     };
@@ -177,7 +177,7 @@ fn app() -> Html {
         let info = info.clone();
         let p_id = p_id.clone();
         let p_days = p_days.clone();
-        let save_state = save_state.clone(); // CHANGED
+        let save_state = save_state.clone();
 
         Callback::from(move |_| {
             let mut model = (*cs).clone();
@@ -196,7 +196,7 @@ fn app() -> Html {
 
             let ok = model.renew_license(&id, days);
             if ok {
-                save_state.emit(model.clone()); // CHANGED
+                save_state.emit(model.clone());
                 cs.set(model);
                 info.set(format!("Führerschein für '{}' erneuert: {} Tage.", id, days));
             } else {
@@ -212,7 +212,7 @@ fn app() -> Html {
         let c_id = c_id.clone();
         let c_km = c_km.clone();
         let c_age = c_age.clone();
-        let save_state = save_state.clone(); // CHANGED
+        let save_state = save_state.clone();
 
         Callback::from(move |_| {
             let mut model = (*cs).clone();
@@ -247,11 +247,14 @@ fn app() -> Html {
             });
 
             if ok {
-                save_state.emit(model.clone()); // CHANGED
+                save_state.emit(model.clone());
                 cs.set(model);
                 info.set(format!("Auto '{}' angelegt.", id));
             } else {
-                info.set("Auto konnte nicht angelegt werden (existiert evtl. schon oder ist ungültig/zu alt).".to_string());
+                info.set(
+                    "Auto konnte nicht angelegt werden (existiert evtl. schon oder ist ungültig/zu alt)."
+                        .to_string(),
+                );
             }
         })
     };
@@ -260,7 +263,7 @@ fn app() -> Html {
         let cs = cs.clone();
         let info = info.clone();
         let c_id = c_id.clone();
-        let save_state = save_state.clone(); // CHANGED
+        let save_state = save_state.clone();
 
         Callback::from(move |_| {
             let mut model = (*cs).clone();
@@ -272,11 +275,14 @@ fn app() -> Html {
 
             let ok = model.unregister_car(&id);
             if ok {
-                save_state.emit(model.clone()); // CHANGED
+                save_state.emit(model.clone());
                 cs.set(model);
                 info.set(format!("Auto '{}' entfernt.", id));
             } else {
-                info.set("Auto konnte nicht entfernt werden (evtl. rented/maintenance/tuv oder existiert nicht).".to_string());
+                info.set(
+                    "Auto konnte nicht entfernt werden (evtl. rented/maintenance/tuv oder existiert nicht)."
+                        .to_string(),
+                );
             }
         })
     };
@@ -288,7 +294,7 @@ fn app() -> Html {
         let r_person = r_person.clone();
         let r_car = r_car.clone();
         let r_prio = r_prio.clone();
-        let save_state = save_state.clone(); // CHANGED
+        let save_state = save_state.clone();
 
         Callback::from(move |_| {
             let mut model = (*cs).clone();
@@ -310,11 +316,17 @@ fn app() -> Html {
 
             let ok = model.reserve_car(&person_id, &car_id, prio);
             if ok {
-                save_state.emit(model.clone()); // CHANGED
+                save_state.emit(model.clone());
                 cs.set(model);
-                info.set(format!("Reservierung gesetzt: {} -> {} (prio {}).", person_id, car_id, prio));
+                info.set(format!(
+                    "Reservierung gesetzt: {} -> {} (prio {}).",
+                    person_id, car_id, prio
+                ));
             } else {
-                info.set("Reservierung nicht möglich (Person blocked, bereits rental, oder Paar existiert).".to_string());
+                info.set(
+                    "Reservierung nicht möglich (Person blocked, bereits rental, oder Paar existiert)."
+                        .to_string(),
+                );
             }
         })
     };
@@ -324,7 +336,7 @@ fn app() -> Html {
         let info = info.clone();
         let r_person = r_person.clone();
         let r_car = r_car.clone();
-        let save_state = save_state.clone(); // CHANGED
+        let save_state = save_state.clone();
 
         Callback::from(move |_| {
             let mut model = (*cs).clone();
@@ -338,7 +350,7 @@ fn app() -> Html {
 
             let ok = model.cancel_reservation(&person_id, &car_id);
             if ok {
-                save_state.emit(model.clone()); // CHANGED
+                save_state.emit(model.clone());
                 cs.set(model);
                 info.set(format!("Reservierung storniert: {} -> {}.", person_id, car_id));
             } else {
@@ -350,12 +362,12 @@ fn app() -> Html {
     let on_process_reservations = {
         let cs = cs.clone();
         let info = info.clone();
-        let save_state = save_state.clone(); // CHANGED
+        let save_state = save_state.clone();
         Callback::from(move |_| {
             let mut model = (*cs).clone();
             let processed = model.process_reservations();
 
-            save_state.emit(model.clone()); // CHANGED
+            save_state.emit(model.clone());
             cs.set(model);
 
             if processed.is_empty() {
@@ -366,41 +378,14 @@ fn app() -> Html {
         })
     };
 
-    // ========== Rental Actions ==========
-    let on_rent = {
-        let cs = cs.clone();
-        let info = info.clone();
-        let rent_person = rent_person.clone();
-        let rent_car = rent_car.clone();
-        let save_state = save_state.clone(); // CHANGED
-
-        Callback::from(move |_| {
-            let mut model = (*cs).clone();
-            let person_id = (*rent_person).trim().to_string();
-            let car_id = (*rent_car).trim().to_string();
-            if person_id.is_empty() || car_id.is_empty() {
-                info.set("Bitte Person-ID und Car-ID fürs Ausleihen eingeben.".to_string());
-                return;
-            }
-
-            let ok = model.rent_car(&person_id, &car_id);
-            if ok {
-                save_state.emit(model.clone()); // CHANGED
-                cs.set(model);
-                info.set(format!("Rental erstellt: {} -> {}.", person_id, car_id));
-            } else {
-                info.set("Ausleihe nicht möglich (blocked, car nicht verfügbar, oder Person hat schon Rental).".to_string());
-            }
-        })
-    };
-
+    // ========== Return Action (bleibt) ==========
     let on_return = {
         let cs = cs.clone();
         let info = info.clone();
         let ret_person = ret_person.clone();
         let ret_car = ret_car.clone();
         let ret_km = ret_km.clone();
-        let save_state = save_state.clone(); // CHANGED
+        let save_state = save_state.clone();
 
         Callback::from(move |_| {
             let mut model = (*cs).clone();
@@ -421,9 +406,12 @@ fn app() -> Html {
 
             let ok = model.return_car(&person_id, &car_id, driven_km);
             if ok {
-                save_state.emit(model.clone()); // CHANGED
+                save_state.emit(model.clone());
                 cs.set(model);
-                info.set(format!("Auto zurückgegeben: {} -> {} (+{} km).", person_id, car_id, driven_km));
+                info.set(format!(
+                    "Auto zurückgegeben: {} -> {} (+{} km).",
+                    person_id, car_id, driven_km
+                ));
             } else {
                 info.set("Return fehlgeschlagen (Rental nicht gefunden?).".to_string());
             }
@@ -435,7 +423,7 @@ fn app() -> Html {
         let cs = cs.clone();
         let info = info.clone();
         let sim_days = sim_days.clone();
-        let save_state = save_state.clone(); // CHANGED
+        let save_state = save_state.clone();
 
         Callback::from(move |_| {
             let mut model = (*cs).clone();
@@ -449,7 +437,7 @@ fn app() -> Html {
 
             model.simulate_n_days(n);
 
-            save_state.emit(model.clone()); // CHANGED
+            save_state.emit(model.clone());
             cs.set(model);
             info.set(format!("Simulation durchgeführt: {} Tage.", n));
         })
@@ -506,19 +494,6 @@ fn app() -> Html {
         let r_prio = r_prio.clone();
         Callback::from(move |e: InputEvent| {
             r_prio.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value());
-        })
-    };
-
-    let on_rent_person = {
-        let rent_person = rent_person.clone();
-        Callback::from(move |e: InputEvent| {
-            rent_person.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value());
-        })
-    };
-    let on_rent_car = {
-        let rent_car = rent_car.clone();
-        Callback::from(move |e: InputEvent| {
-            rent_car.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value());
         })
     };
 
@@ -627,14 +602,9 @@ fn app() -> Html {
         },
         Tab::Rentals => html! {
             <section style={panel_style}>
-                <h2>{"Rentals"}</h2>
+                <h2>{"Active Rentals"}</h2>
 
-                <h3>{"Rent"}</h3>
-                <div style={row_style}>
-                    <input style={input_style} placeholder="Person-ID" value={(*rent_person).clone()} oninput={on_rent_person}/>
-                    <input style={input_style} placeholder="Car-ID" value={(*rent_car).clone()} oninput={on_rent_car}/>
-                    <button style={button_style} onclick={on_rent}>{"Rent Car"}</button>
-                </div>
+                // Rent-UI entfernt: Rentals entstehen automatisch beim Process/Simulation.
 
                 <h3 style="margin-top:14px;">{"Return"}</h3>
                 <div style={row_style}>
@@ -656,7 +626,7 @@ fn app() -> Html {
                 <div style={row_style}>
                     <input style={input_style} placeholder="n days" value={(*sim_days).clone()} oninput={on_sim_days}/>
                     <button style={button_style} onclick={on_simulate}>{"Simulate n days"}</button>
-                    <button style={button_style} onclick={on_reset}>{"Reset state"}</button> // CHANGED
+                    <button style={button_style} onclick={on_reset}>{"Reset state"}</button>
                 </div>
                 <p style={small}>{format!("Current day: {}", model.current_day)}</p>
                 <p style={small}>{"Hinweis: simulate_n_days() verarbeitet am Ende jedes Tages process_reservations()."}</p>
@@ -672,7 +642,7 @@ fn app() -> Html {
                 { tab_button(&tab, Tab::Persons, "Persons", set_tab_persons) }
                 { tab_button(&tab, Tab::Cars, "Cars", set_tab_cars) }
                 { tab_button(&tab, Tab::Reservations, "Reservations", set_tab_res) }
-                { tab_button(&tab, Tab::Rentals, "Rentals", set_tab_rentals) }
+                { tab_button(&tab, Tab::Rentals, "Active Rentals", set_tab_rentals) }
                 { tab_button(&tab, Tab::Simulation, "Simulation", set_tab_sim) }
             </div>
 
