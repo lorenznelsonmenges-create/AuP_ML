@@ -1,0 +1,8 @@
+[package]
+name = "rust-frontend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+web-sys = { version = "0.3.83", features = ["HtmlInputElement"] }
+yew = { version = "0.21", features = ["csr"] }
