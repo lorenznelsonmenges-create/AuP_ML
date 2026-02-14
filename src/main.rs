@@ -1,8 +1,6 @@
 use yew::prelude::*;
-use gloo_net::http::Request; // NEU: für HTTP-Anfragen
+use gloo_net::http::Request;
 use wasm_bindgen_futures::spawn_local;
-
-// Veraltete 'gloo_storage' und 'STORAGE_KEY' wurden entfernt
 
 use rust_frontend::carsharing::{
     Car, CarSharing, CarSharingService, CarStatus, Person, PersonStatus,
@@ -31,17 +29,13 @@ fn tab_button(current: &Tab, tab: Tab, label: &str, on_click: Callback<MouseEven
 #[function_component(App)]
 fn app() -> Html {
     let tab = use_state(|| Tab::Persons);
-
-    // --- NEUER LADE-MECHANISMUS ---
-    // App-State: CarSharing, startet leer und wird vom Backend geladen
     let cs = use_state(CarSharing::new);
 
-    // Effekt, der einmal beim Laden der Komponente ausgeführt wird
+    // --- LADE-MECHANISMUS ---
     {
         let cs = cs.clone();
         use_effect(move || {
             spawn_local(async move {
-                // Daten vom Backend abrufen
                 let fetched_cs: CarSharing = Request::get("/api/state")
                     .send()
                     .await
@@ -49,72 +43,62 @@ fn app() -> Html {
                     .json()
                     .await
                     .unwrap();
-                // Den Zustand der App mit den Daten vom Backend aktualisieren
                 cs.set(fetched_cs);
             });
-            || () // Cleanup-Funktion
+            || ()
         });
     }
-    // --- ENDE NEUER LADE-MECHANISMUS ---
 
-    // Kleine Statuszeile (Feedback)
+    // --- NEUER SPEICHER-MECHANISMUS ---
+    let save_state = {
+        let info = use_state(|| String::new());
+        Callback::from(move |model: CarSharing| {
+            let info = info.clone();
+            spawn_local(async move {
+                let request = Request::post("/api/state")
+                    .json(&model);
+                
+                if let Err(_) = request.send().await {
+                    info.set("Fehler: Konnte Zustand nicht ans Backend senden.".to_string());
+                }
+            });
+        })
+    };
+
     let info = use_state(|| String::new());
 
-    // ---------- Persons Form State ----------
+    // ---------- Form States ----------
     let p_id = use_state(|| "".to_string());
     let p_days = use_state(|| "".to_string());
-
-    // ---------- Cars Form State ----------
     let c_id = use_state(|| "".to_string());
     let c_km = use_state(|| "".to_string());
     let c_age = use_state(|| "".to_string());
-
-    // ---------- Reservation Form State ----------
     let r_person = use_state(|| "".to_string());
     let r_car = use_state(|| "".to_string());
     let r_prio = use_state(|| "1".to_string());
-
-    // ---------- Return Form State ----------
     let ret_person = use_state(|| "".to_string());
     let ret_car = use_state(|| "".to_string());
     let ret_km = use_state(|| "".to_string());
-
-    // ---------- Simulation State ----------
     let sim_days = use_state(|| "".to_string());
 
-    // Der 'save_state' Block wurde entfernt. Wir speichern vorerst nicht.
-
-    // Reset Button (LocalStorage-Teil entfernt)
     let on_reset = {
         let cs = cs.clone();
         let info = info.clone();
+        let save_state = save_state.clone();
         Callback::from(move |_| {
-            cs.set(CarSharing::new());
-            info.set("State zurückgesetzt (nur im Frontend).".to_string());
+            let new_model = CarSharing::new();
+            save_state.emit(new_model.clone()); // Send reset state to backend
+            cs.set(new_model);
+            info.set("State an Backend gesendet und zurückgesetzt.".to_string());
         })
     };
 
     // ========== Tab Switch Callbacks ==========
-    let set_tab_persons = {
-        let tab = tab.clone();
-        Callback::from(move |_| tab.set(Tab::Persons))
-    };
-    let set_tab_cars = {
-        let tab = tab.clone();
-        Callback::from(move |_| tab.set(Tab::Cars))
-    };
-    let set_tab_res = {
-        let tab = tab.clone();
-        Callback::from(move |_| tab.set(Tab::Reservations))
-    };
-    let set_tab_rentals = {
-        let tab = tab.clone();
-        Callback::from(move |_| tab.set(Tab::Rentals))
-    };
-    let set_tab_sim = {
-        let tab = tab.clone();
-        Callback::from(move |_| tab.set(Tab::Simulation))
-    };
+    let set_tab_persons = { let tab = tab.clone(); Callback::from(move |_| tab.set(Tab::Persons)) };
+    let set_tab_cars = { let tab = tab.clone(); Callback::from(move |_| tab.set(Tab::Cars)) };
+    let set_tab_res = { let tab = tab.clone(); Callback::from(move |_| tab.set(Tab::Reservations)) };
+    let set_tab_rentals = { let tab = tab.clone(); Callback::from(move |_| tab.set(Tab::Rentals)) };
+    let set_tab_sim = { let tab = tab.clone(); Callback::from(move |_| tab.set(Tab::Simulation)) };
 
     // ========== Persons Actions ==========
     let on_add_person = {
@@ -122,29 +106,18 @@ fn app() -> Html {
         let info = info.clone();
         let p_id = p_id.clone();
         let p_days = p_days.clone();
-        
+        let save_state = save_state.clone();
         Callback::from(move |_| {
             let mut model = (*cs).clone();
             let id = (*p_id).trim().to_string();
-            if id.is_empty() {
-                info.set("Person-ID darf nicht leer sein.".to_string());
-                return;
-            }
+            if id.is_empty() { info.set("Person-ID darf nicht leer sein.".to_string()); return; }
             let days = match (*p_days).trim().parse::<u32>() {
                 Ok(v) => v,
-                Err(_) => {
-                    info.set("license_valid_days muss eine Zahl sein.".to_string());
-                    return;
-                }
+                Err(_) => { info.set("license_valid_days muss eine Zahl sein.".to_string()); return; }
             };
-
-            let ok = model.register_person(Person {
-                identifier: id.clone(),
-                license_valid_days: days,
-                status: PersonStatus::Active,
-            });
-
+            let ok = model.register_person(Person { identifier: id.clone(), license_valid_days: days, status: PersonStatus::Active });
             if ok {
+                save_state.emit(model.clone());
                 cs.set(model);
                 info.set(format!("Person '{}' angelegt.", id));
             } else {
@@ -157,24 +130,18 @@ fn app() -> Html {
         let cs = cs.clone();
         let info = info.clone();
         let p_id = p_id.clone();
-
+        let save_state = save_state.clone();
         Callback::from(move |_| {
             let mut model = (*cs).clone();
             let id = (*p_id).trim().to_string();
-            if id.is_empty() {
-                info.set("Zum Entfernen bitte Person-ID eingeben.".to_string());
-                return;
-            }
-
+            if id.is_empty() { info.set("Zum Entfernen bitte Person-ID eingeben.".to_string()); return; }
             let ok = model.unregister_person(&id);
             if ok {
+                save_state.emit(model.clone());
                 cs.set(model);
                 info.set(format!("Person '{}' entfernt.", id));
             } else {
-                info.set(
-                    "Person konnte nicht entfernt werden (evtl. existiert sie nicht oder hat ein Rental)."
-                        .to_string(),
-                );
+                info.set("Person konnte nicht entfernt werden.".to_string());
             }
         })
     };
@@ -184,26 +151,20 @@ fn app() -> Html {
         let info = info.clone();
         let p_id = p_id.clone();
         let p_days = p_days.clone();
-        
+        let save_state = save_state.clone();
         Callback::from(move |_| {
             let mut model = (*cs).clone();
             let id = (*p_id).trim().to_string();
-            if id.is_empty() {
-                info.set("Bitte Person-ID eingeben.".to_string());
-                return;
-            }
+            if id.is_empty() { info.set("Bitte Person-ID eingeben.".to_string()); return; }
             let days = match (*p_days).trim().parse::<u32>() {
                 Ok(v) => v,
-                Err(_) => {
-                    info.set("new_valid_days muss eine Zahl sein.".to_string());
-                    return;
-                }
+                Err(_) => { info.set("new_valid_days muss eine Zahl sein.".to_string()); return; }
             };
-
             let ok = model.renew_license(&id, days);
             if ok {
+                save_state.emit(model.clone());
                 cs.set(model);
-                info.set(format!("Führerschein für '{}' erneuert: {} Tage.", id, days));
+                info.set(format!("Führerschein für '{}' erneuert.", id));
             } else {
                 info.set("Person nicht gefunden.".to_string());
             }
@@ -217,47 +178,26 @@ fn app() -> Html {
         let c_id = c_id.clone();
         let c_km = c_km.clone();
         let c_age = c_age.clone();
-        
+        let save_state = save_state.clone();
         Callback::from(move |_| {
             let mut model = (*cs).clone();
             let id = (*c_id).trim().to_string();
-            if id.is_empty() {
-                info.set("Car-ID darf nicht leer sein.".to_string());
-                return;
-            }
-
+            if id.is_empty() { info.set("Car-ID darf nicht leer sein.".to_string()); return; }
             let mileage = match (*c_km).trim().parse::<u32>() {
                 Ok(v) => v,
-                Err(_) => {
-                    info.set("mileage muss eine Zahl sein.".to_string());
-                    return;
-                }
+                Err(_) => { info.set("mileage muss eine Zahl sein.".to_string()); return; }
             };
-
             let age_days = match (*c_age).trim().parse::<u32>() {
                 Ok(v) => v,
-                Err(_) => {
-                    info.set("age_days muss eine Zahl sein.".to_string());
-                    return;
-                }
+                Err(_) => { info.set("age_days muss eine Zahl sein.".to_string()); return; }
             };
-
-            let ok = model.register_car(Car {
-                identifier: id.clone(),
-                mileage,
-                status: CarStatus::Available,
-                age_days,
-                rental_count: 0,
-            });
-
+            let ok = model.register_car(Car { identifier: id.clone(), mileage, status: CarStatus::Available, age_days, rental_count: 0 });
             if ok {
+                save_state.emit(model.clone());
                 cs.set(model);
                 info.set(format!("Auto '{}' angelegt.", id));
             } else {
-                info.set(
-                    "Auto konnte nicht angelegt werden (existiert evtl. schon oder ist ungültig/zu alt)."
-                        .to_string(),
-                );
+                info.set("Auto konnte nicht angelegt werden.".to_string());
             }
         })
     };
@@ -266,24 +206,18 @@ fn app() -> Html {
         let cs = cs.clone();
         let info = info.clone();
         let c_id = c_id.clone();
-        
+        let save_state = save_state.clone();
         Callback::from(move |_| {
             let mut model = (*cs).clone();
             let id = (*c_id).trim().to_string();
-            if id.is_empty() {
-                info.set("Zum Entfernen bitte Car-ID eingeben.".to_string());
-                return;
-            }
-
+            if id.is_empty() { info.set("Zum Entfernen bitte Car-ID eingeben.".to_string()); return; }
             let ok = model.unregister_car(&id);
             if ok {
+                save_state.emit(model.clone());
                 cs.set(model);
                 info.set(format!("Auto '{}' entfernt.", id));
             } else {
-                info.set(
-                    "Auto konnte nicht entfernt werden (evtl. rented/maintenance/tuv oder existiert nicht)."
-                        .to_string(),
-                );
+                info.set("Auto konnte nicht entfernt werden.".to_string());
             }
         })
     };
@@ -295,37 +229,23 @@ fn app() -> Html {
         let r_person = r_person.clone();
         let r_car = r_car.clone();
         let r_prio = r_prio.clone();
-        
+        let save_state = save_state.clone();
         Callback::from(move |_| {
             let mut model = (*cs).clone();
             let person_id = (*r_person).trim().to_string();
             let car_id = (*r_car).trim().to_string();
-
-            if person_id.is_empty() || car_id.is_empty() {
-                info.set("Bitte Person-ID und Car-ID für Reservierung eingeben.".to_string());
-                return;
-            }
-
+            if person_id.is_empty() || car_id.is_empty() { info.set("Bitte Person-ID und Car-ID eingeben.".to_string()); return; }
             let prio = match (*r_prio).trim().parse::<u32>() {
                 Ok(v) => v,
-                Err(_) => {
-                    info.set("priority muss eine Zahl sein.".to_string());
-                    return;
-                }
+                Err(_) => { info.set("priority muss eine Zahl sein.".to_string()); return; }
             };
-
             let ok = model.reserve_car(&person_id, &car_id, prio);
             if ok {
+                save_state.emit(model.clone());
                 cs.set(model);
-                info.set(format!(
-                    "Reservierung gesetzt: {} -> {} (prio {}).",
-                    person_id, car_id, prio
-                ));
+                info.set(format!("Reservierung gesetzt: {} -> {}.", person_id, car_id));
             } else {
-                info.set(
-                    "Reservierung nicht möglich (Person blocked, bereits rental, oder Paar existiert)."
-                        .to_string(),
-                );
+                info.set("Reservierung nicht möglich.".to_string());
             }
         })
     };
@@ -335,19 +255,15 @@ fn app() -> Html {
         let info = info.clone();
         let r_person = r_person.clone();
         let r_car = r_car.clone();
-        
+        let save_state = save_state.clone();
         Callback::from(move |_| {
             let mut model = (*cs).clone();
             let person_id = (*r_person).trim().to_string();
             let car_id = (*r_car).trim().to_string();
-
-            if person_id.is_empty() || car_id.is_empty() {
-                info.set("Bitte Person-ID und Car-ID für Storno eingeben.".to_string());
-                return;
-            }
-
+            if person_id.is_empty() || car_id.is_empty() { info.set("Bitte Person-ID und Car-ID eingeben.".to_string()); return; }
             let ok = model.cancel_reservation(&person_id, &car_id);
             if ok {
+                save_state.emit(model.clone());
                 cs.set(model);
                 info.set(format!("Reservierung storniert: {} -> {}.", person_id, car_id));
             } else {
@@ -359,13 +275,12 @@ fn app() -> Html {
     let on_process_reservations = {
         let cs = cs.clone();
         let info = info.clone();
-        
+        let save_state = save_state.clone();
         Callback::from(move |_| {
             let mut model = (*cs).clone();
             let processed = model.process_reservations();
-
+            save_state.emit(model.clone());
             cs.set(model);
-
             if processed.is_empty() {
                 info.set("Keine Reservierungen verarbeitet.".to_string());
             } else {
@@ -374,40 +289,30 @@ fn app() -> Html {
         })
     };
 
-    // ========== Return Action (bleibt) ==========
+    // ========== Return Action ==========
     let on_return = {
         let cs = cs.clone();
         let info = info.clone();
         let ret_person = ret_person.clone();
         let ret_car = ret_car.clone();
         let ret_km = ret_km.clone();
-
+        let save_state = save_state.clone();
         Callback::from(move |_| {
             let mut model = (*cs).clone();
             let person_id = (*ret_person).trim().to_string();
             let car_id = (*ret_car).trim().to_string();
-            if person_id.is_empty() || car_id.is_empty() {
-                info.set("Bitte Person-ID und Car-ID fürs Zurückgeben eingeben.".to_string());
-                return;
-            }
-
+            if person_id.is_empty() || car_id.is_empty() { info.set("Bitte Person-ID und Car-ID eingeben.".to_string()); return; }
             let driven_km = match (*ret_km).trim().parse::<u32>() {
                 Ok(v) => v,
-                Err(_) => {
-                    info.set("driven_km muss eine Zahl sein.".to_string());
-                    return;
-                }
+                Err(_) => { info.set("driven_km muss eine Zahl sein.".to_string()); return; }
             };
-
             let ok = model.return_car(&person_id, &car_id, driven_km);
             if ok {
+                save_state.emit(model.clone());
                 cs.set(model);
-                info.set(format!(
-                    "Auto zurückgegeben: {} -> {} (+{} km).",
-                    person_id, car_id, driven_km
-                ));
+                info.set(format!("Auto zurückgegeben: {} -> {}.", person_id, car_id));
             } else {
-                info.set("Return fehlgeschlagen (Rental nicht gefunden?).".to_string());
+                info.set("Return fehlgeschlagen.".to_string());
             }
         })
     };
@@ -417,108 +322,37 @@ fn app() -> Html {
         let cs = cs.clone();
         let info = info.clone();
         let sim_days = sim_days.clone();
-
+        let save_state = save_state.clone();
         Callback::from(move |_| {
             let mut model = (*cs).clone();
             let n = match sim_days.trim().parse::<u32>() {
                 Ok(v) => v,
-                Err(_) => {
-                    info.set("Simulationstage müssen eine Zahl sein.".to_string());
-                    return;
-                }
+                Err(_) => { info.set("Simulationstage müssen eine Zahl sein.".to_string()); return; }
             };
-
             model.simulate_n_days(n);
-
+            save_state.emit(model.clone());
             cs.set(model);
             info.set(format!("Simulation durchgeführt: {} Tage.", n));
         })
     };
 
     // ========== Inputs: oninput callbacks ==========
-    let on_p_id = {
-        let p_id = p_id.clone();
-        Callback::from(move |e: InputEvent| {
-            let v = e.target_unchecked_into::<web_sys::HtmlInputElement>().value();
-            p_id.set(v);
-        })
-    };
-    let on_p_days = {
-        let p_days = p_days.clone();
-        Callback::from(move |e: InputEvent| {
-            let v = e.target_unchecked_into::<web_sys::HtmlInputElement>().value();
-            p_days.set(v);
-        })
-    };
-
-    let on_c_id = {
-        let c_id = c_id.clone();
-        Callback::from(move |e: InputEvent| {
-            c_id.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value());
-        })
-    };
-    let on_c_km = {
-        let c_km = c_km.clone();
-        Callback::from(move |e: InputEvent| {
-            c_km.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value());
-        })
-    };
-    let on_c_age = {
-        let c_age = c_age.clone();
-        Callback::from(move |e: InputEvent| {
-            c_age.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value());
-        })
-    };
-
-    let on_r_person = {
-        let r_person = r_person.clone();
-        Callback::from(move |e: InputEvent| {
-            r_person.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value());
-        })
-    };
-    let on_r_car = {
-        let r_car = r_car.clone();
-        Callback::from(move |e: InputEvent| {
-            r_car.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value());
-        })
-    };
-    let on_r_prio = {
-        let r_prio = r_prio.clone();
-        Callback::from(move |e: InputEvent| {
-            r_prio.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value());
-        })
-    };
-
-    let on_ret_person = {
-        let ret_person = ret_person.clone();
-        Callback::from(move |e: InputEvent| {
-            ret_person.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value());
-        })
-    };
-    let on_ret_car = {
-        let ret_car = ret_car.clone();
-        Callback::from(move |e: InputEvent| {
-            ret_car.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value());
-        })
-    };
-    let on_ret_km = {
-        let ret_km = ret_km.clone();
-        Callback::from(move |e: InputEvent| {
-            ret_km.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value());
-        })
-    };
-
-    let on_sim_days = {
-        let sim_days = sim_days.clone();
-        Callback::from(move |e: InputEvent| {
-            sim_days.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value());
-        })
-    };
+    let on_p_id = { let p_id = p_id.clone(); Callback::from(move |e: InputEvent| { p_id.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value()); }) };
+    let on_p_days = { let p_days = p_days.clone(); Callback::from(move |e: InputEvent| { p_days.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value()); }) };
+    let on_c_id = { let c_id = c_id.clone(); Callback::from(move |e: InputEvent| { c_id.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value()); }) };
+    let on_c_km = { let c_km = c_km.clone(); Callback::from(move |e: InputEvent| { c_km.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value()); }) };
+    let on_c_age = { let c_age = c_age.clone(); Callback::from(move |e: InputEvent| { c_age.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value()); }) };
+    let on_r_person = { let r_person = r_person.clone(); Callback::from(move |e: InputEvent| { r_person.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value()); }) };
+    let on_r_car = { let r_car = r_car.clone(); Callback::from(move |e: InputEvent| { r_car.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value()); }) };
+    let on_r_prio = { let r_prio = r_prio.clone(); Callback::from(move |e: InputEvent| { r_prio.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value()); }) };
+    let on_ret_person = { let ret_person = ret_person.clone(); Callback::from(move |e: InputEvent| { ret_person.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value()); }) };
+    let on_ret_car = { let ret_car = ret_car.clone(); Callback::from(move |e: InputEvent| { ret_car.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value()); }) };
+    let on_ret_km = { let ret_km = ret_km.clone(); Callback::from(move |e: InputEvent| { ret_km.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value()); }) };
+    let on_sim_days = { let sim_days = sim_days.clone(); Callback::from(move |e: InputEvent| { sim_days.set(e.target_unchecked_into::<web_sys::HtmlInputElement>().value()); }) };
 
     // ========== Render current tab ==========
     let current_tab = (*tab).clone();
     let model = (*cs).clone();
-
     let panel_style = "border:1px solid #ddd; border-radius:16px; padding:16px; margin-top:12px;";
     let row_style = "display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0;";
     let input_style = "padding:8px 10px; border:1px solid #ccc; border-radius:10px; min-width:220px;";
@@ -538,13 +372,8 @@ fn app() -> Html {
                     <button style={button_style} onclick={on_remove_person}>{"Remove Person (by ID)"}</button>
                     <button style={button_style} onclick={on_renew_license}>{"Renew License (ID + days)"}</button>
                 </div>
-
                 <p style={small}>{format!("Persons: {}", model.persons.len())}</p>
-                <ul>
-                    { for model.persons.iter().map(|p| {
-                        html!{ <li>{format!("{} | days:{} | status:{:?}", p.identifier, p.license_valid_days, p.status)}</li> }
-                    })}
-                </ul>
+                <ul>{ for model.persons.iter().map(|p| html!{ <li>{format!("{} | days:{} | status:{:?}", p.identifier, p.license_valid_days, p.status)}</li> }) }</ul>
             </section>
         },
         Tab::Cars => html! {
@@ -559,15 +388,9 @@ fn app() -> Html {
                     <button style={button_style} onclick={on_add_car}>{"Add Car"}</button>
                     <button style={button_style} onclick={on_remove_car}>{"Remove Car (by ID)"}</button>
                 </div>
-
                 <p style={small}>{format!("Cars: {}", model.cars.len())}</p>
                 <p style={small}>{format!("Available: {:?}", model.get_available_cars())}</p>
-
-                <ul>
-                    { for model.cars.iter().map(|c| {
-                        html!{ <li>{format!("{} | km:{} | age:{} | rentals:{} | status:{:?}", c.identifier, c.mileage, c.age_days, c.rental_count, c.status)}</li> }
-                    })}
-                </ul>
+                <ul>{ for model.cars.iter().map(|c| html!{ <li>{format!("{} | km:{} | age:{} | rentals:{} | status:{:?}", c.identifier, c.mileage, c.age_days, c.rental_count, c.status)}</li> }) }</ul>
             </section>
         },
         Tab::Reservations => html! {
@@ -583,21 +406,13 @@ fn app() -> Html {
                     <button style={button_style} onclick={on_cancel_reservation}>{"Cancel Reservation"}</button>
                     <button style={button_style} onclick={on_process_reservations}>{"Process Reservations"}</button>
                 </div>
-
                 <p style={small}>{format!("Reservations: {}", model.reservations.len())}</p>
-                <ul>
-                    { for model.reservations.iter().map(|r| {
-                        html!{ <li>{format!("{} -> {} (prio {})", r.person_id, r.car_id, r.priority)}</li> }
-                    })}
-                </ul>
+                <ul>{ for model.reservations.iter().map(|r| html!{ <li>{format!("{} -> {} (prio {})", r.person_id, r.car_id, r.priority)}</li> }) }</ul>
             </section>
         },
         Tab::Rentals => html! {
             <section style={panel_style}>
                 <h2>{"Active Rentals"}</h2>
-
-                // Rent-UI entfernt: Rentals entstehen automatisch beim Process/Simulation.
-
                 <h3 style="margin-top:14px;">{"Return"}</h3>
                 <div style={row_style}>
                     <input style={input_style} placeholder="Person-ID" value={(*ret_person).clone()} oninput={on_ret_person}/>
@@ -605,11 +420,8 @@ fn app() -> Html {
                     <input style={input_style} placeholder="driven_km" value={(*ret_km).clone()} oninput={on_ret_km}/>
                     <button style={button_style} onclick={on_return}>{"Return Car"}</button>
                 </div>
-
                 <p style={small}>{format!("Rentals: {}", model.rentals.len())}</p>
-                <ul>
-                    { for model.rentals.iter().map(|(p,c)| html!{ <li>{format!("{} -> {}", p, c)}</li> }) }
-                </ul>
+                <ul>{ for model.rentals.iter().map(|(p,c)| html!{ <li>{format!("{} -> {}", p, c)}</li> }) }</ul>
             </section>
         },
         Tab::Simulation => html! {
@@ -629,7 +441,6 @@ fn app() -> Html {
     html! {
         <main style="font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 16px; max-width: 980px; margin: 0 auto;">
             <h1>{"Carsharing Frontend"}</h1>
-
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
                 { tab_button(&tab, Tab::Persons, "Persons", set_tab_persons) }
                 { tab_button(&tab, Tab::Cars, "Cars", set_tab_cars) }
@@ -637,11 +448,9 @@ fn app() -> Html {
                 { tab_button(&tab, Tab::Rentals, "Active Rentals", set_tab_rentals) }
                 { tab_button(&tab, Tab::Simulation, "Simulation", set_tab_sim) }
             </div>
-
             <p style="margin-top:12px; padding:10px 12px; border:1px solid #eee; border-radius:12px; background:#fafafa;">
                 <strong>{"Status: "}</strong>{(*info).clone()}
             </p>
-
             {content}
         </main>
     }
