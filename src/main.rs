@@ -1,5 +1,6 @@
 use yew::prelude::*;
 use gloo_net::http::Request; // NEU: für HTTP-Anfragen
+use wasm_bindgen_futures::spawn_local;
 
 // Veraltete 'gloo_storage' und 'STORAGE_KEY' wurden entfernt
 
@@ -38,8 +39,8 @@ fn app() -> Html {
     // Effekt, der einmal beim Laden der Komponente ausgeführt wird
     {
         let cs = cs.clone();
-        use_effect_with_deps(move |_| {
-            wasm_bindgen_futures::spawn_local(async move {
+        use_effect(move || {
+            spawn_local(async move {
                 // Daten vom Backend abrufen
                 let fetched_cs: CarSharing = Request::get("/api/state")
                     .send()
@@ -51,8 +52,8 @@ fn app() -> Html {
                 // Den Zustand der App mit den Daten vom Backend aktualisieren
                 cs.set(fetched_cs);
             });
-            || () // Cleanup-Funktion (hier nicht nötig)
-        }, ()); // Leere Abhängigkeiten `()` bedeuten, dass dies nur einmal ausgeführt wird
+            || () // Cleanup-Funktion
+        });
     }
     // --- ENDE NEUER LADE-MECHANISMUS ---
 
