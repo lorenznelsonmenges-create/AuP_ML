@@ -58,8 +58,15 @@ fn app() -> Html {
                 let request = Request::post("/api/state")
                     .json(&model);
                 
-                if let Err(_) = request.send().await {
-                    info.set("Fehler: Konnte Zustand nicht ans Backend senden.".to_string());
+                match request {
+                    Ok(req) => {
+                        if let Err(_) = req.send().await {
+                            info.set("Fehler: Konnte Zustand nicht ans Backend senden.".to_string());
+                        }
+                    }
+                    Err(_) => {
+                        info.set("Fehler: Interner Fehler beim Erstellen der Anfrage.".to_string());
+                    }
                 }
             });
         })
